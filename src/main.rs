@@ -15,7 +15,8 @@ struct Interface {
 struct Peer {
     public_key: String,
     allowed_ips: Vec<String>,
-    endpoint: String,
+    endpoint: (String, u16),
+    site: String,
     persistent_keepalive: u16,
     has_public_ipv4_address: bool,
 }
@@ -35,7 +36,10 @@ impl Display for WireguardConfig {
             config.push_str("[Peer]\n");
             config.push_str(&format!("PublicKey = {}\n", peer.public_key));
             config.push_str(&format!("AllowedIPs = {}\n", peer.allowed_ips.join(", ")));
-            config.push_str(&format!("Endpoint = {}\n", peer.endpoint));
+            config.push_str(&format!(
+                "Endpoint = {}:{}\n",
+                peer.endpoint.0, peer.endpoint.1
+            ));
             config.push_str(&format!(
                 "PersistentKeepalive = {}\n",
                 peer.persistent_keepalive
@@ -69,12 +73,16 @@ fn get_peer(peer_addr: &str) -> Peer {
         .map(|a| format!("{}/32", a.address))
         .collect();
 
-    let endpoint = format!("{peer_addr}:51820");
+    let site = peer_addr
+        .chars()
+        .skip_while(|c| *c != '.')
+        .collect::<String>();
 
     Peer {
         public_key: pubkey.to_string(),
         allowed_ips,
-        endpoint,
+        endpoint: (peer_addr.into(), 51820),
+        site,
         persistent_keepalive: 25,
         has_public_ipv4_address,
     }
@@ -110,6 +118,7 @@ fn main() {
     let peers = peers
         .iter()
         .filter(|peer| *peer != this_peer)
+        .filter(|peer| peer.site != this_peer.site)
         .filter(|peer| !this_peer.has_public_ipv4_address || !peer.has_public_ipv4_address)
         .cloned()
         .collect();
