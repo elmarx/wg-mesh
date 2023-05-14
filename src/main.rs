@@ -1,3 +1,4 @@
+use error::WgMesh as WgMeshError;
 use futures::future::join_all;
 use model::{Interface, Peer, WireguardConfig};
 use rsdns::clients::tokio::Client;
@@ -7,10 +8,11 @@ use rsdns::{constants::Class, records::data::A, Error};
 use std::env::args;
 use std::str::from_utf8;
 
+mod error;
 mod model;
 
 async fn get_peer(peer_addr: &str) -> Peer {
-    let config = ClientConfig::with_nameserver("[2620:fe::fe]:53".parse().unwrap());
+    let config = ClientConfig::with_nameserver("[2620:fe::9]:53".parse().unwrap());
     let mut client = Client::new(config).await.unwrap();
 
     let qname = format!("_wireguard.{peer_addr}");
@@ -47,7 +49,7 @@ async fn get_peer(peer_addr: &str) -> Peer {
 }
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<(), WgMeshError> {
     let config = ClientConfig::with_nameserver("[2620:fe::fe]:53".parse().unwrap());
     let mut client = Client::new(config).await.unwrap();
     let response = client
@@ -64,8 +66,8 @@ async fn main() {
     )
     .await;
 
-    let interface_private_key = args().nth(1).expect("no privatekey given");
-    let interface_pubkey = args().nth(2).expect("no pubkey given");
+    let interface_private_key = args().nth(1).ok_or(WgMeshError::PrivateKeyMissing)?;
+    let interface_pubkey = args().nth(2).ok_or(WgMeshError::PubkeyMissing)?;
 
     let interface = Interface {
         listen_port: 51820,
@@ -75,7 +77,7 @@ async fn main() {
     let this_peer = peers
         .iter()
         .find(|peer| peer.public_key == interface_pubkey)
-        .unwrap();
+        .ok_or(WgMeshError::PeerNotPartOfMesh(interface_pubkey.clone()))?;
 
     let peers = peers
         .iter()
@@ -88,4 +90,6 @@ async fn main() {
     let wireguard_config = WireguardConfig { interface, peers };
 
     println!("{wireguard_config}");
+
+    Ok(())
 }
