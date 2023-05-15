@@ -7,7 +7,11 @@ use rsdns::records::data::Txt;
 use rsdns::{constants::Class, records::data::A, Error};
 use std::env::args;
 use std::str::{from_utf8, FromStr};
-use wireguard_control::{Backend, Device, InterfaceName};
+use wireguard_control::Backend;
+use wireguard_control::Device;
+use wireguard_control::DeviceUpdate;
+use wireguard_control::InterfaceName;
+use wireguard_control::PeerConfigBuilder;
 
 mod error;
 mod model;
@@ -47,7 +51,6 @@ async fn get_peer(peer_addr: &str) -> Peer {
         allowed_ips,
         endpoint: (peer_addr.into(), 51820),
         site,
-        persistent_keepalive: 25,
         has_public_ipv4_address,
     }
 }
@@ -83,17 +86,19 @@ async fn main() -> Result<(), WgMeshError> {
         .find(|peer| peer.public_key == interface_pubkey)
         .ok_or(WgMeshError::PeerNotPartOfMesh(interface_pubkey.clone()))?;
 
-    let peers: Vec<Peer> = peers
+    let peers = peers
         .iter()
         .filter(|peer| *peer != this_peer)
         .filter(|peer| peer.site != this_peer.site)
         .filter(|peer| !this_peer.has_public_ipv4_address || !peer.has_public_ipv4_address)
-        .cloned()
-        .collect();
+        .map(|peer| peer.try_into())
+        .collect::<Result<Vec<PeerConfigBuilder>, _>>()?;
 
-    for peer in peers {
-        println!("{peer}");
-    }
+    let update = DeviceUpdate::new().replace_peers().add_peers(&peers);
+
+    update
+        .apply(&interface_name, BACKEND)
+        .map_err(WgMeshError::FailedToApplyConfig)?;
 
     Ok(())
 }

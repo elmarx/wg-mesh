@@ -1,9 +1,8 @@
-use std::fmt::{Display, Formatter};
-
-pub struct Interface {
-    pub listen_port: u16,
-    pub private_key: String,
-}
+use crate::error::WgMesh as WgMeshError;
+use crate::error::WgMesh::{InvalidIpAddress, InvalidPublicKey};
+use std::net::ToSocketAddrs;
+use std::str::FromStr;
+use wireguard_control::{AllowedIp, Key, PeerConfigBuilder};
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Peer {
@@ -11,57 +10,35 @@ pub struct Peer {
     pub allowed_ips: Vec<String>,
     pub endpoint: (String, u16),
     pub site: String,
-    pub persistent_keepalive: u16,
     pub has_public_ipv4_address: bool,
 }
 
-pub struct WireguardConfig {
-    pub interface: Interface,
-    pub peers: Vec<Peer>,
-}
+impl TryInto<PeerConfigBuilder> for &Peer {
+    type Error = WgMeshError;
 
-impl Display for WireguardConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut config = self.interface.to_string();
+    fn try_into(self) -> Result<PeerConfigBuilder, Self::Error> {
+        let allowed_ips = self
+            .allowed_ips
+            .iter()
+            .map(|a| AllowedIp::from_str(a).map_err(|_| InvalidIpAddress(a.clone())))
+            .collect::<Result<Vec<_>, _>>()?;
 
-        for peer in &self.peers {
-            config.push_str(&peer.to_string());
-        }
+        let public_key = Key::from_base64(&self.public_key)
+            .map_err(|e| InvalidPublicKey(e, self.public_key.clone()))?;
+        let endpoint = self
+            .endpoint
+            .to_socket_addrs()
+            .map_err(|e| {
+                WgMeshError::UnresolvableSocketAddress(e, self.endpoint.0.clone(), self.endpoint.1)
+            })?
+            .next()
+            .ok_or(WgMeshError::NoResolveResponse(self.endpoint.0.clone()))?;
 
-        write!(f, "{config}")
-    }
-}
+        let o = PeerConfigBuilder::new(&public_key)
+            .set_endpoint(endpoint)
+            .add_allowed_ips(&allowed_ips)
+            .set_persistent_keepalive_interval(25);
 
-impl Display for Interface {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            r#"
-            [Interface]
-            ListenPort = {},
-            PrivateKey = {}
-            "#,
-            self.listen_port, self.private_key
-        )
-    }
-}
-
-impl Display for Peer {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            r#"
-            [Peer]
-            Endpoint = {}:{},
-            PublicKey = {}
-            AllowedIPs = {}
-            PersistentKeepalive = {}
-            "#,
-            self.endpoint.0,
-            self.endpoint.1,
-            self.public_key,
-            self.allowed_ips.join(", "),
-            self.persistent_keepalive,
-        )
+        Ok(o)
     }
 }
