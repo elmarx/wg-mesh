@@ -1,4 +1,4 @@
-use std::fmt::Display;
+use std::fmt::{Display, Formatter};
 
 pub struct Interface {
     pub listen_port: u16,
@@ -21,26 +21,47 @@ pub struct WireguardConfig {
 }
 
 impl Display for WireguardConfig {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut config = "[Interface]\n".to_string();
-        config.push_str(&format!("ListenPort = {}\n", self.interface.listen_port));
-        config.push_str(&format!("PrivateKey = {}\n", self.interface.private_key));
-        config.push('\n');
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let mut config = self.interface.to_string();
+
         for peer in &self.peers {
-            config.push_str("[Peer]\n");
-            config.push_str(&format!("PublicKey = {}\n", peer.public_key));
-            config.push_str(&format!("AllowedIPs = {}\n", peer.allowed_ips.join(", ")));
-            config.push_str(&format!(
-                "Endpoint = {}:{}\n",
-                peer.endpoint.0, peer.endpoint.1
-            ));
-            config.push_str(&format!(
-                "PersistentKeepalive = {}\n",
-                peer.persistent_keepalive
-            ));
-            config.push('\n');
+            config.push_str(&peer.to_string());
         }
 
         write!(f, "{config}")
+    }
+}
+
+impl Display for Interface {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            r#"
+            [Interface]
+            ListenPort = {},
+            PrivateKey = {}
+            "#,
+            self.listen_port, self.private_key
+        )
+    }
+}
+
+impl Display for Peer {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            r#"
+            [Peer]
+            Endpoint = {}:{},
+            PublicKey = {}
+            AllowedIPs = {}
+            PersistentKeepalive = {}
+            "#,
+            self.endpoint.0,
+            self.endpoint.1,
+            self.public_key,
+            self.allowed_ips.join(", "),
+            self.persistent_keepalive,
+        )
     }
 }
