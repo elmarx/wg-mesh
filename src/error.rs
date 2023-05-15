@@ -5,9 +5,12 @@ pub(crate) enum WgMesh {
     #[error("This peer is not part of the mesh (public_key {0} not found)")]
     PeerNotPartOfMesh(String),
 
-    #[error("The pubkey is missing")]
-    PubkeyMissing,
+    #[error("Invalid interface name: {0}")]
+    InvalidInterfaceName(String),
 
-    #[error("The private key is missing")]
-    PrivateKeyMissing,
+    #[error(transparent)]
+    NoSuchDevice(std::io::Error),
+
+    #[error("Public key missing")]
+    NoPubkey,
 }

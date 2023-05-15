@@ -1,15 +1,19 @@
 use error::WgMesh as WgMeshError;
 use futures::future::join_all;
-use model::{Interface, Peer, WireguardConfig};
+use model::Peer;
 use rsdns::clients::tokio::Client;
 use rsdns::clients::ClientConfig;
 use rsdns::records::data::Txt;
 use rsdns::{constants::Class, records::data::A, Error};
 use std::env::args;
-use std::str::from_utf8;
+use std::str::{from_utf8, FromStr};
+use wireguard_control::{Backend, Device, InterfaceName};
 
 mod error;
 mod model;
+
+#[cfg(target_os = "linux")]
+const BACKEND: Backend = Backend::Kernel;
 
 async fn get_peer(peer_addr: &str) -> Peer {
     let config = ClientConfig::with_nameserver("[2620:fe::9]:53".parse().unwrap());
@@ -66,20 +70,20 @@ async fn main() -> Result<(), WgMeshError> {
     )
     .await;
 
-    let interface_private_key = args().nth(1).ok_or(WgMeshError::PrivateKeyMissing)?;
-    let interface_pubkey = args().nth(2).ok_or(WgMeshError::PubkeyMissing)?;
+    let interface_name = args().nth(1).unwrap_or("wg0".to_string());
+    let interface_name = InterfaceName::from_str("wg0")
+        .map_err(|_| WgMeshError::InvalidInterfaceName(interface_name))?;
 
-    let interface = Interface {
-        listen_port: 51820,
-        private_key: interface_private_key,
-    };
+    let device = Device::get(&interface_name, BACKEND).map_err(WgMeshError::NoSuchDevice)?;
+    let interface_pubkey = device.public_key.ok_or(WgMeshError::NoPubkey)?;
+    let interface_pubkey = interface_pubkey.to_base64();
 
     let this_peer = peers
         .iter()
         .find(|peer| peer.public_key == interface_pubkey)
         .ok_or(WgMeshError::PeerNotPartOfMesh(interface_pubkey.clone()))?;
 
-    let peers = peers
+    let peers: Vec<Peer> = peers
         .iter()
         .filter(|peer| *peer != this_peer)
         .filter(|peer| peer.site != this_peer.site)
@@ -87,9 +91,9 @@ async fn main() -> Result<(), WgMeshError> {
         .cloned()
         .collect();
 
-    let wireguard_config = WireguardConfig { interface, peers };
-
-    println!("{wireguard_config}");
+    for peer in peers {
+        println!("{peer}");
+    }
 
     Ok(())
 }
