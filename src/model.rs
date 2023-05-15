@@ -25,20 +25,28 @@ impl TryInto<PeerConfigBuilder> for &Peer {
 
         let public_key = Key::from_base64(&self.public_key)
             .map_err(|e| InvalidPublicKey(e, self.public_key.clone()))?;
+
+        let o = PeerConfigBuilder::new(&public_key)
+            .add_allowed_ips(&allowed_ips)
+            .set_persistent_keepalive_interval(25);
+
+        // the endpoint is optional
         let endpoint = self
             .endpoint
             .to_socket_addrs()
             .map_err(|e| {
                 WgMeshError::UnresolvableSocketAddress(e, self.endpoint.0.clone(), self.endpoint.1)
-            })?
-            .next()
-            .ok_or(WgMeshError::NoResolveResponse(self.endpoint.0.clone()))?;
+            })
+            .and_then(|mut i| {
+                i.next()
+                    .ok_or(WgMeshError::NoResolveResponse(self.endpoint.0.clone()))
+            })
+            .ok();
 
-        let o = PeerConfigBuilder::new(&public_key)
-            .set_endpoint(endpoint)
-            .add_allowed_ips(&allowed_ips)
-            .set_persistent_keepalive_interval(25);
-
-        Ok(o)
+        if let Some(endpoint) = endpoint {
+            Ok(o.set_endpoint(endpoint))
+        } else {
+            Ok(o)
+        }
     }
 }
