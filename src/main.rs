@@ -57,10 +57,14 @@ async fn get_peer(peer_addr: &str) -> Peer {
 
 #[tokio::main]
 async fn main() -> Result<(), WgMeshError> {
+    let mesh_record = args()
+        .nth(1)
+        .expect("please pass record name with the peer list");
+
     let config = ClientConfig::with_nameserver("[2620:fe::fe]:53".parse().unwrap());
     let mut client = Client::new(config).await.unwrap();
     let response = client
-        .query_rrset::<Txt>("_wg-mesh.example.com", Class::In)
+        .query_rrset::<Txt>(&mesh_record, Class::In)
         .await
         .unwrap();
 
@@ -73,7 +77,7 @@ async fn main() -> Result<(), WgMeshError> {
     )
     .await;
 
-    let interface_name = args().nth(1).unwrap_or("wg0".to_string());
+    let interface_name = args().nth(2).unwrap_or("wg0".to_string());
     let interface_name = InterfaceName::from_str("wg0")
         .map_err(|_| WgMeshError::InvalidInterfaceName(interface_name))?;
 
