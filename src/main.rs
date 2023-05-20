@@ -56,17 +56,14 @@ async fn get_peer(peer_addr: &str) -> Peer {
 }
 
 #[tokio::main]
-async fn main() -> Result<(), WgMeshError> {
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mesh_record = args()
         .nth(1)
         .expect("please pass record name with the peer list");
 
-    let config = ClientConfig::with_nameserver("[2620:fe::fe]:53".parse().unwrap());
-    let mut client = Client::new(config).await.unwrap();
-    let response = client
-        .query_rrset::<Txt>(&mesh_record, Class::In)
-        .await
-        .unwrap();
+    let config = ClientConfig::with_nameserver("[2620:fe::fe]:53".parse()?);
+    let mut client = Client::new(config).await?;
+    let response = client.query_rrset::<Txt>(&mesh_record, Class::In).await?;
 
     let peers = join_all(
         response
