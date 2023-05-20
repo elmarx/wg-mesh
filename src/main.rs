@@ -6,6 +6,7 @@ use rsdns::clients::ClientConfig;
 use rsdns::records::data::Txt;
 use rsdns::{constants::Class, records::data::A, Error};
 use std::env::args;
+use std::net::ToSocketAddrs;
 use std::str::{from_utf8, FromStr};
 use wireguard_control::Backend;
 use wireguard_control::Device;
@@ -61,7 +62,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .nth(1)
         .expect("please pass record name with the peer list");
 
-    let config = ClientConfig::with_nameserver("[2620:fe::fe]:53".parse()?);
+    let nameserver = "dns.quad9.net:53"
+        .to_socket_addrs()?
+        .next()
+        .ok_or("could not get socket-address for dns.quad9.net:53")?;
+    let config = ClientConfig::with_nameserver(nameserver);
     let mut client = Client::new(config).await?;
     let response = client.query_rrset::<Txt>(&mesh_record, Class::In).await?;
 
