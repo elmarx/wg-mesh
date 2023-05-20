@@ -12,7 +12,6 @@ use wireguard_control::Backend;
 use wireguard_control::Device;
 use wireguard_control::DeviceUpdate;
 use wireguard_control::InterfaceName;
-use wireguard_control::PeerConfigBuilder;
 
 mod error;
 mod model;
@@ -70,7 +69,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut client = Client::new(config).await?;
     let response = client.query_rrset::<Txt>(&mesh_record, Class::In).await?;
 
-    let peers = join_all(
+    let mut peers = join_all(
         response
             .rdata
             .iter()
@@ -89,18 +88,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let this_peer = peers
         .iter()
-        .find(|peer| peer.public_key == interface_pubkey)
+        .position(|peer| peer.public_key == interface_pubkey)
         .ok_or(WgMeshError::PeerNotPartOfMesh(interface_pubkey.clone()))?;
+    let this_peer = peers.swap_remove(this_peer);
 
-    let peers = peers
-        .iter()
+    let peers: Vec<_> = peers
+        .into_iter()
         .filter(|peer| *peer != this_peer)
         .filter(|peer| peer.site != this_peer.site)
         .filter(|peer| !this_peer.has_public_ipv4_address || !peer.has_public_ipv4_address)
-        .map(|peer| peer.try_into())
-        .collect::<Result<Vec<PeerConfigBuilder>, _>>()?;
+        .collect();
 
-    let update = DeviceUpdate::new().replace_peers().add_peers(&peers);
+    let peer_config_builders = peers
+        .iter()
+        .map(|peer| peer.try_into())
+        .collect::<Result<Vec<_>, _>>()?;
+
+    let update = DeviceUpdate::new()
+        .replace_peers()
+        .add_peers(&peer_config_builders);
 
     update
         .apply(&interface_name, BACKEND)
