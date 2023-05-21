@@ -1,10 +1,16 @@
+use crate::error::WgMesh;
 use error::WgMesh as WgMeshError;
 use futures::future::join_all;
+use futures::TryStreamExt;
+use ipnet::Ipv4Net;
 use model::Peer;
+use nix::errno::Errno;
 use rsdns::clients::tokio::Client;
 use rsdns::clients::ClientConfig;
 use rsdns::records::data::Txt;
 use rsdns::{constants::Class, records::data::A, Error};
+use rtnetlink::new_connection;
+use rtnetlink::Error::NetlinkError;
 use std::env::args;
 use std::net::ToSocketAddrs;
 use std::str::{from_utf8, FromStr};
@@ -57,9 +63,26 @@ async fn get_peer(peer_addr: &str) -> Peer {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let interface_name = args().nth(2).unwrap_or("wg0".to_string());
+    let interface_name = InterfaceName::from_str(&interface_name)
+        .map_err(|_| WgMeshError::InvalidInterfaceName(interface_name))?;
     let mesh_record = args()
         .nth(1)
         .expect("please pass record name with the peer list");
+
+    let (connection, handle, _) = new_connection().unwrap();
+    tokio::spawn(connection);
+
+    let route_handle = handle.route();
+    let mut link_handle = handle.link();
+
+    let interface = link_handle
+        .get()
+        .match_name(interface_name.to_string())
+        .execute()
+        .try_next()
+        .await?
+        .ok_or("no such interface")?;
 
     let nameserver = "dns.quad9.net:53"
         .to_socket_addrs()?
@@ -77,10 +100,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .map(get_peer),
     )
     .await;
-
-    let interface_name = args().nth(2).unwrap_or("wg0".to_string());
-    let interface_name = InterfaceName::from_str("wg0")
-        .map_err(|_| WgMeshError::InvalidInterfaceName(interface_name))?;
 
     let device = Device::get(&interface_name, BACKEND).map_err(WgMeshError::NoSuchDevice)?;
     let interface_pubkey = device.public_key.ok_or(WgMeshError::NoPubkey)?;
@@ -111,6 +130,34 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     update
         .apply(&interface_name, BACKEND)
         .map_err(WgMeshError::FailedToApplyConfig)?;
+
+    // TODO: do not always add requests without checks
+    let route_add_requests: Vec<_> = peers
+        .iter()
+        .flat_map(|peer| {
+            peer.allowed_ips
+                .iter()
+                .map(|i| i.parse::<Ipv4Net>().unwrap())
+                .map(|ip| {
+                    route_handle
+                        .add()
+                        .v4()
+                        .input_interface(interface.header.index)
+                        .output_interface(interface.header.index)
+                        .destination_prefix(ip.addr(), ip.prefix_len())
+                })
+        })
+        .collect();
+
+    for r in route_add_requests {
+        r.execute().await.or_else(|e| -> Result<(), WgMeshError> {
+            match e {
+                // TODO: this is not very elegant, so better check in the first place if something has to be added or not
+                NetlinkError(err) if -err.code == Errno::EEXIST as i32 => Ok(()),
+                err => Err(WgMesh::NetlinkError(err)),
+            }
+        })?;
+    }
 
     Ok(())
 }

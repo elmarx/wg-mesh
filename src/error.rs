@@ -29,4 +29,7 @@ pub enum WgMesh {
 
     #[error("Failed to apply wireguard config: {0}")]
     FailedToApplyConfig(std::io::Error),
+
+    #[error(transparent)]
+    NetlinkError(rtnetlink::Error),
 }
