@@ -1,3 +1,4 @@
+use rsdns::Error as RsdnsError;
 use thiserror::Error;
 use wireguard_control::InvalidKey;
 
@@ -32,4 +33,7 @@ pub enum WgMesh {
 
     #[error(transparent)]
     NetlinkError(rtnetlink::Error),
+
+    #[error(transparent)]
+    Rsdns(RsdnsError),
 }
