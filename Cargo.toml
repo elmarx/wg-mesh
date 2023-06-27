@@ -7,7 +7,7 @@ edition = "2021"
 
 [dependencies]
 futures = "0.3.28"
-ipnet = "2.7.2"
+ipnet = "2.8.0"
 nix = "0.26.2"
 rsdns = { version = "0.15.0", features = [ "net-tokio" ] }
 rtnetlink = "0.12.0"
