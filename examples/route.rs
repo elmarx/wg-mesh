@@ -1,10 +1,10 @@
 use futures::TryStreamExt;
-use rtnetlink::{new_connection, IpVersion, LinkHandle, RouteHandle};
+use rtnetlink::{new_connection, IpVersion};
 
 #[tokio::main]
 async fn main() -> Result<(), rtnetlink::Error> {
     let (route_connection, handle, _) = new_connection().unwrap();
-    let (link_connection, link_handle, _) = new_connection().unwrap();
+    let (link_connection, _link_handle, _) = new_connection().unwrap();
     tokio::spawn(route_connection);
     tokio::spawn(link_connection);
 
@@ -25,7 +25,7 @@ async fn main() -> Result<(), rtnetlink::Error> {
         .await?
         .unwrap();
 
-    let index = link.header.index;
+    let _index = link.header.index;
 
     println!("{link:?}");
     println!("{routes:?}");
