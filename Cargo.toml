@@ -7,10 +7,11 @@ edition = "2021"
 
 [dependencies]
 futures = "0.3.28"
-ipnet = "2.7.2"
+ipnet = "2.8.0"
+netlink-packet-core = "0.7.0"
 nix = "0.26.2"
 rsdns = { version = "0.15.0", features = [ "net-tokio" ] }
-rtnetlink = "0.12.0"
+rtnetlink = "0.13.1"
 thiserror = "1.0.40"
-tokio = { version = "1.28.0", features = ["full"] }
+tokio = { version = "1.31.0", features = ["full"] }
 wireguard-control = "1.5.0"

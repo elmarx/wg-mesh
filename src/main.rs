@@ -1,9 +1,11 @@
-use crate::error::WgMesh;
-use error::WgMesh as WgMeshError;
+use std::env::args;
+use std::net::{SocketAddr, ToSocketAddrs};
+use std::str::{from_utf8, FromStr};
+
 use futures::future::join_all;
 use futures::TryStreamExt;
 use ipnet::Ipv4Net;
-use model::Peer;
+use netlink_packet_core::ErrorMessage;
 use nix::errno::Errno;
 use rsdns::clients::tokio::Client;
 use rsdns::clients::ClientConfig;
@@ -11,13 +13,15 @@ use rsdns::records::data::Txt;
 use rsdns::{constants::Class, records::data::A, Error};
 use rtnetlink::new_connection;
 use rtnetlink::Error::NetlinkError;
-use std::env::args;
-use std::net::{SocketAddr, ToSocketAddrs};
-use std::str::{from_utf8, FromStr};
 use wireguard_control::Backend;
 use wireguard_control::Device;
 use wireguard_control::DeviceUpdate;
 use wireguard_control::InterfaceName;
+
+use error::WgMesh as WgMeshError;
+use model::Peer;
+
+use crate::error::WgMesh;
 
 mod error;
 mod model;
@@ -156,7 +160,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         r.execute().await.or_else(|e| -> Result<(), WgMeshError> {
             match e {
                 // TODO: this is not very elegant, so better check in the first place if something has to be added or not
-                NetlinkError(err) if -err.code == Errno::EEXIST as i32 => Ok(()),
+                NetlinkError(ErrorMessage {
+                    code: Some(code), ..
+                }) if i32::from(-code) == Errno::EEXIST as i32 => Ok(()),
                 err => Err(WgMesh::NetlinkError(err)),
             }
         })?;
