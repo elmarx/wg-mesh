@@ -50,8 +50,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let routing_service = RoutingServiceImpl::new(handle, &interface_name);
 
     let wg_mesh = WgMesh::new(peer_repository, routing_service, wireguard_device);
-    // TODO: loop/re-execute
-    wg_mesh.execute(&mesh_record).await?;
-
-    Ok(())
+    loop {
+        wg_mesh.execute(&mesh_record).await?;
+        sleep(Duration::from_secs(300)).await;
+    }
 }

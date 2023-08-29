@@ -32,7 +32,7 @@ where
         }
     }
 
-    pub async fn execute(self, mesh_record: &str) -> Result<(), error::WgMesh> {
+    pub async fn execute(&self, mesh_record: &str) -> Result<(), error::WgMesh> {
         let interface_pubkey = self.wireguard.get_interface_pubkey()?;
 
         // first, get a list of all Peers belonging to the mesh
