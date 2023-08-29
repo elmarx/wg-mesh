@@ -1,14 +1,15 @@
 use std::net::ToSocketAddrs;
 use std::str::FromStr;
 
+use crate::error;
+use error::Wireguard::{NoResolveResponse, UnresolvableSocketAddress};
 use wireguard_control::{AllowedIp, Key, PeerConfigBuilder};
 
-use crate::error::WgMesh as WgMeshError;
-use crate::error::WgMesh::{InvalidIpAddress, InvalidPublicKey};
+use crate::error::Wireguard::{InvalidIpAddress, InvalidPublicKey};
 use crate::model::Peer;
 
 impl TryInto<PeerConfigBuilder> for &Peer {
-    type Error = WgMeshError;
+    type Error = error::Wireguard;
 
     fn try_into(self) -> Result<PeerConfigBuilder, Self::Error> {
         let allowed_ips = self
@@ -28,13 +29,8 @@ impl TryInto<PeerConfigBuilder> for &Peer {
         let endpoint = self
             .endpoint
             .to_socket_addrs()
-            .map_err(|e| {
-                WgMeshError::UnresolvableSocketAddress(e, self.endpoint.0.clone(), self.endpoint.1)
-            })
-            .and_then(|mut i| {
-                i.next()
-                    .ok_or(WgMeshError::NoResolveResponse(self.endpoint.0.clone()))
-            })
+            .map_err(|e| UnresolvableSocketAddress(e, self.endpoint.0.clone(), self.endpoint.1))
+            .and_then(|mut i| i.next().ok_or(NoResolveResponse(self.endpoint.0.clone())))
             .ok();
 
         if let Some(endpoint) = endpoint {

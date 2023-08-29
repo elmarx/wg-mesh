@@ -23,19 +23,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .nth(1)
         .expect("please pass record name with the peer list");
 
-    let (connection, handle, _) = new_connection().unwrap();
+    let (connection, handle, _) = new_connection()?;
     tokio::spawn(connection);
 
     // TODO: parse address(es) from resolve.conf
-    let peer_repository = DnsNodeRepository::from_address("dns.quad9.net:53");
+    let peer_repository = DnsNodeRepository::from_address("dns.quad9.net:53")?;
 
     // TODO: loop/wait for device to be available
-    let wireguard_device = WireguardImpl::new(&interface_name);
+    let wireguard_device = WireguardImpl::new(&interface_name)?;
     let routing_service = RoutingServiceImpl::new(handle, &interface_name);
 
     let wg_mesh = WgMesh::new(peer_repository, routing_service, wireguard_device);
     // TODO: loop/re-execute
-    wg_mesh.execute(&mesh_record).await;
+    wg_mesh.execute(&mesh_record).await?;
 
     Ok(())
 }

@@ -1,8 +1,9 @@
 use std::str::FromStr;
 
+use crate::error;
 use wireguard_control::{Backend, Device, DeviceUpdate, InterfaceName};
 
-use crate::error::WgMesh as WgMeshError;
+use crate::error::Wireguard::{FailedToApplyConfig, InvalidInterfaceName, NoPubkey, NoSuchDevice};
 use crate::model::Peer;
 use crate::traits::Wireguard;
 
@@ -14,21 +15,20 @@ pub struct WireguardImpl {
 }
 
 impl WireguardImpl {
-    pub fn new(interface_name: &str) -> WireguardImpl {
+    pub fn new(interface_name: &str) -> Result<WireguardImpl, error::Wireguard> {
         let interface_name = InterfaceName::from_str(interface_name)
-            .map_err(|_| WgMeshError::InvalidInterfaceName(interface_name.to_string()))
-            .unwrap();
-        WireguardImpl { interface_name }
+            .map_err(|_| InvalidInterfaceName(interface_name.to_string()))?;
+
+        Ok(WireguardImpl { interface_name })
     }
 }
 
 impl Wireguard for WireguardImpl {
-    fn replace_peers(&self, peers: &[Peer]) {
+    fn replace_peers(&self, peers: &[Peer]) -> Result<(), error::Wireguard> {
         let peer_config_builders = peers
             .iter()
             .map(TryInto::try_into)
-            .collect::<Result<Vec<_>, _>>()
-            .unwrap();
+            .collect::<Result<Vec<_>, _>>()?;
 
         let update = DeviceUpdate::new()
             .replace_peers()
@@ -36,13 +36,11 @@ impl Wireguard for WireguardImpl {
 
         update
             .apply(&self.interface_name, BACKEND)
-            .map_err(WgMeshError::FailedToApplyConfig)
-            .unwrap();
+            .map_err(FailedToApplyConfig)
     }
-    fn get_interface_pubkey(&self) -> Result<String, WgMeshError> {
-        let device =
-            Device::get(&self.interface_name, BACKEND).map_err(WgMeshError::NoSuchDevice)?;
-        let interface_pubkey = device.public_key.ok_or(WgMeshError::NoPubkey)?;
+    fn get_interface_pubkey(&self) -> Result<String, error::Wireguard> {
+        let device = Device::get(&self.interface_name, BACKEND).map_err(NoSuchDevice)?;
+        let interface_pubkey = device.public_key.ok_or(NoPubkey)?;
         Ok(interface_pubkey.to_base64())
     }
 }

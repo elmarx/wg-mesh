@@ -1,4 +1,6 @@
+use crate::error;
 use async_trait::async_trait;
+use error::Routing::NoSuchInterface;
 use futures::TryStreamExt;
 use ipnet::Ipv4Net;
 use netlink_packet_core::ErrorMessage;
@@ -6,7 +8,6 @@ use nix::errno::Errno;
 use rtnetlink::Error::NetlinkError;
 use rtnetlink::RouteHandle;
 
-use crate::error::{WgMesh as WgMeshError, WgMesh};
 use crate::model::Peer;
 use crate::traits::RoutingService;
 
@@ -30,7 +31,7 @@ impl RoutingServiceImpl {
 
 #[async_trait(?Send)]
 impl RoutingService for RoutingServiceImpl {
-    async fn add_routes(&self, peers: &[Peer]) {
+    async fn add_routes(&self, peers: &[Peer]) -> Result<(), error::Routing> {
         let mut link_handle = self.handle.link();
 
         let interface = link_handle
@@ -38,17 +39,20 @@ impl RoutingService for RoutingServiceImpl {
             .match_name(self.interface_name.clone())
             .execute()
             .try_next()
-            .await
-            .unwrap()
-            .ok_or("no such interface")
-            .unwrap();
+            .await?;
+
+        let interface =
+            interface.ok_or_else(|| NoSuchInterface(self.interface_name.to_string()))?;
 
         let route_add_requests: Vec<_> = peers
             .iter()
             .flat_map(|peer| {
                 peer.allowed_ips
                     .iter()
-                    .map(|i| i.parse::<Ipv4Net>().unwrap())
+                    .map(|i| {
+                        i.parse::<Ipv4Net>()
+                            .expect("got invalid IPv4 address for Peer's allowed_ips")
+                    })
                     .map(|ip| {
                         self.route_handle
                             .add()
@@ -63,16 +67,17 @@ impl RoutingService for RoutingServiceImpl {
         for r in route_add_requests {
             r.execute()
                 .await
-                .or_else(|e| -> Result<(), WgMeshError> {
+                .or_else(|e| -> Result<(), error::Routing> {
                     match e {
                         // TODO: this is not very elegant, so better check in the first place if something has to be added or not
                         NetlinkError(ErrorMessage {
                             code: Some(code), ..
                         }) if i32::from(-code) == Errno::EEXIST as i32 => Ok(()),
-                        err => Err(WgMesh::NetlinkError(err)),
+                        err => Err(error::Routing::NetlinkError(err)),
                     }
-                })
-                .unwrap();
+                })?;
         }
+
+        Ok(())
     }
 }
