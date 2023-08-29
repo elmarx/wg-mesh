@@ -1,10 +1,9 @@
-use std::net::ToSocketAddrs;
+use std::net::SocketAddr;
 use std::str::from_utf8;
 
+use crate::dns::resolver;
 use crate::error;
-use crate::error::NodeRepository::{
-    InvalidNameserver, MissingPubkeyRecord, UnresolvableSocketAddress,
-};
+use crate::error::NodeRepository::MissingPubkeyRecord;
 use async_trait::async_trait;
 use futures::future::join_all;
 use rsdns::clients::tokio::Client;
@@ -21,16 +20,17 @@ pub struct DnsNodeRepository {
 }
 
 impl DnsNodeRepository {
-    pub fn from_address(address: &str) -> Result<Self, error::NodeRepository> {
-        let nameserver = address
-            .to_socket_addrs()
-            .map_err(|e| UnresolvableSocketAddress(e, address.to_string()))?
-            .next()
-            .ok_or_else(|| InvalidNameserver(address.to_string()))?;
+    pub fn new(resolver: SocketAddr) -> Self {
+        let config = ClientConfig::with_nameserver(resolver);
 
-        let config = ClientConfig::with_nameserver(nameserver);
+        DnsNodeRepository { config }
+    }
 
-        Ok(DnsNodeRepository { config })
+    pub fn init(address: Option<String>) -> Result<Self, error::NodeRepository> {
+        Ok(match address {
+            Some(a) => Self::new(resolver::from_address(&a)?),
+            None => Self::new(resolver::from_resolv_conf()),
+        })
     }
 }
 

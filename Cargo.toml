@@ -11,6 +11,7 @@ futures = "0.3.28"
 ipnet = "2.8.0"
 netlink-packet-core = "0.7.0"
 nix = "0.27.1"
+resolv-conf = "0.7.0"
 rsdns = { version = "0.15.0", features = [ "net-tokio" ] }
 rtnetlink = "0.13.1"
 thiserror = "1.0.40"

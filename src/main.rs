@@ -1,3 +1,4 @@
+use std::env;
 use std::env::args;
 
 use rtnetlink::new_connection;
@@ -22,12 +23,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mesh_record = args()
         .nth(1)
         .expect("please pass record name with the peer list");
+    let mesh_resolver = env::var("WG_MESH_RESOLVER").ok();
 
     let (connection, handle, _) = new_connection()?;
     tokio::spawn(connection);
 
-    // TODO: parse address(es) from resolve.conf
-    let peer_repository = DnsNodeRepository::from_address("dns.quad9.net:53")?;
+    let peer_repository = DnsNodeRepository::init(mesh_resolver)?;
 
     // TODO: loop/wait for device to be available
     let wireguard_device = WireguardImpl::new(&interface_name)?;
