@@ -6,11 +6,11 @@ use crate::error;
 use crate::error::NodeRepository::MissingPubkeyRecord;
 use async_trait::async_trait;
 use futures::future::join_all;
-use rsdns::clients::tokio::Client;
-use rsdns::clients::ClientConfig;
-use rsdns::constants::Class;
-use rsdns::records::data::{Txt, A};
 use rsdns::Error;
+use rsdns::clients::ClientConfig;
+use rsdns::clients::tokio::Client;
+use rsdns::constants::Class;
+use rsdns::records::data::{A, Txt};
 
 use crate::model::Peer;
 use crate::traits::NodeRepository;

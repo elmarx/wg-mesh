@@ -1,5 +1,5 @@
 use futures::TryStreamExt;
-use rtnetlink::{new_connection, IpVersion};
+use rtnetlink::{IpVersion, new_connection};
 
 #[tokio::main]
 async fn main() -> Result<(), rtnetlink::Error> {
