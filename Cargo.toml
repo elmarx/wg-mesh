@@ -10,9 +10,9 @@ async-trait = "0.1.88"
 futures = "0.3.31"
 ipnet = "2.11.0"
 netlink-packet-core = "0.7.0"
-nix = "0.27.1"
+nix = "0.30.1"
 resolv-conf = "0.7.4"
-rsdns = { version = "0.15.0", features = [ "net-tokio" ] }
+rsdns = { version = "0.20.0", features = [ "net-tokio" ] }
 rtnetlink = "0.13.1"
 thiserror = "2.0.12"
 tokio = { version = "1.46.1", features = ["full"] }

@@ -9,7 +9,7 @@ use futures::future::join_all;
 use rsdns::Error;
 use rsdns::clients::ClientConfig;
 use rsdns::clients::tokio::Client;
-use rsdns::constants::Class;
+use rsdns::records::Class;
 use rsdns::records::data::{A, Txt};
 
 use crate::model::Peer;
@@ -42,7 +42,7 @@ impl NodeRepository for DnsNodeRepository {
     ) -> Result<Vec<String>, error::NodeRepository> {
         let mut client = Client::new(self.config.clone()).await?;
 
-        let response = client.query_rrset::<Txt>(mesh_record, Class::In).await?;
+        let response = client.query_rrset::<Txt>(mesh_record, Class::IN).await?;
 
         Ok(response
             .rdata
@@ -57,13 +57,13 @@ impl NodeRepository for DnsNodeRepository {
 
         let qname = format!("_wireguard.{node_addr}");
 
-        let has_public_ipv4_address = match client.query_rrset::<A>(node_addr, Class::In).await {
+        let has_public_ipv4_address = match client.query_rrset::<A>(node_addr, Class::IN).await {
             Ok(a_query) => Ok(a_query.rdata.iter().any(|a| !a.address.is_private())),
             Err(Error::NoAnswer) => Ok(false),
             Err(e) => Err(e),
         }?;
 
-        let pubkey_query = client.query_rrset::<Txt>(&qname, Class::In).await?;
+        let pubkey_query = client.query_rrset::<Txt>(&qname, Class::IN).await?;
         let pubkey = from_utf8(
             &pubkey_query
                 .rdata
@@ -72,7 +72,7 @@ impl NodeRepository for DnsNodeRepository {
                 .text,
         )
         .expect("non-UTF-8 TXT record for peer pubkey");
-        let allowed_ips_query = client.query_rrset::<A>(&qname, Class::In).await?;
+        let allowed_ips_query = client.query_rrset::<A>(&qname, Class::IN).await?;
         let allowed_ips: Vec<_> = allowed_ips_query
             .rdata
             .iter()
