@@ -26,7 +26,7 @@ pub enum Mesh {
 #[derive(Error, Debug)]
 pub enum NodeRepository {
     #[error(transparent)]
-    Rsdns(#[from] RsdnsError),
+    Rsdns(RsdnsError),
 
     #[error("Cant turn {1} into a socket address: {0}")]
     UnresolvableSocketAddress(std::io::Error, String),
