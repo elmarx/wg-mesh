@@ -6,7 +6,7 @@ edition = "2024"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-async-trait = "0.1.88"
+async-trait = "0.1.89"
 futures = "0.3.31"
 ipnet = "2.11.0"
 netlink-packet-core = "0.7.0"
