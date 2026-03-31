@@ -1,5 +1,6 @@
 use futures::TryStreamExt;
-use rtnetlink::{IpVersion, new_connection};
+use rtnetlink::{RouteMessageBuilder, new_connection};
+use std::net::Ipv4Addr;
 
 #[tokio::main]
 async fn main() -> Result<(), rtnetlink::Error> {
@@ -9,10 +10,10 @@ async fn main() -> Result<(), rtnetlink::Error> {
     tokio::spawn(link_connection);
 
     let route_handle = handle.route();
-    let mut link_handle = handle.link();
+    let link_handle = handle.link();
 
     let routes: Vec<_> = route_handle
-        .get(IpVersion::V4)
+        .get(RouteMessageBuilder::<Ipv4Addr>::new().build())
         .execute()
         .try_collect()
         .await?;

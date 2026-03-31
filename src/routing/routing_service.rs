@@ -6,7 +6,7 @@ use ipnet::Ipv4Net;
 use netlink_packet_core::ErrorMessage;
 use nix::errno::Errno;
 use rtnetlink::Error::NetlinkError;
-use rtnetlink::RouteHandle;
+use rtnetlink::{RouteHandle, RouteMessageBuilder};
 
 use crate::model::Peer;
 use crate::traits::RoutingService;
@@ -32,7 +32,7 @@ impl RoutingServiceImpl {
 #[async_trait(?Send)]
 impl RoutingService for RoutingServiceImpl {
     async fn add_routes(&self, peers: &[Peer]) -> Result<(), error::Routing> {
-        let mut link_handle = self.handle.link();
+        let link_handle = self.handle.link();
 
         let interface = link_handle
             .get()
@@ -53,12 +53,12 @@ impl RoutingService for RoutingServiceImpl {
                             .expect("got invalid IPv4 address for Peer's allowed_ips")
                     })
                     .map(|ip| {
-                        self.route_handle
-                            .add()
-                            .v4()
+                        let route = RouteMessageBuilder::<std::net::Ipv4Addr>::new()
                             .input_interface(interface.header.index)
                             .output_interface(interface.header.index)
                             .destination_prefix(ip.addr(), ip.prefix_len())
+                            .build();
+                        self.route_handle.add(route)
                     })
             })
             .collect();
@@ -71,7 +71,7 @@ impl RoutingService for RoutingServiceImpl {
                         // TODO: this is not very elegant, so better check in the first place if something has to be added or not
                         NetlinkError(ErrorMessage {
                             code: Some(code), ..
-                        }) if i32::from(-code) == Errno::EEXIST as i32 => Ok(()),
+                        }) if -code.get() == Errno::EEXIST as i32 => Ok(()),
                         err => Err(error::Routing::NetlinkError(err)),
                     }
                 })?;
