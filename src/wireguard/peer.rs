@@ -15,7 +15,7 @@ impl TryInto<PeerConfigBuilder> for &Peer {
         let allowed_ips = self
             .allowed_ips
             .iter()
-            .map(|a| AllowedIp::from_str(a).map_err(|_| InvalidIpAddress(a.clone())))
+            .map(|a| AllowedIp::from_str(a).map_err(|()| InvalidIpAddress(a.clone())))
             .collect::<Result<Vec<_>, _>>()?;
 
         let public_key = Key::from_base64(&self.public_key)

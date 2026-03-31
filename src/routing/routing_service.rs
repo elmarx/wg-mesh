@@ -41,8 +41,7 @@ impl RoutingService for RoutingServiceImpl {
             .try_next()
             .await?;
 
-        let interface =
-            interface.ok_or_else(|| NoSuchInterface(self.interface_name.to_string()))?;
+        let interface = interface.ok_or_else(|| NoSuchInterface(self.interface_name.clone()))?;
 
         let route_add_requests: Vec<_> = peers
             .iter()

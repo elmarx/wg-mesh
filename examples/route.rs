@@ -25,8 +25,6 @@ async fn main() -> Result<(), rtnetlink::Error> {
         .await?
         .unwrap();
 
-    let _index = link.header.index;
-
     println!("{link:?}");
     println!("{routes:?}");
 
