@@ -18,20 +18,6 @@ mod routing;
 mod traits;
 mod wireguard;
 
-pub async fn init_retry_wg(interface_name: &str) -> Result<WireguardImpl, error::Wireguard> {
-    for _ in 0..12 {
-        let wireguard = WireguardImpl::new(interface_name);
-
-        if wireguard.is_ok() {
-            return wireguard;
-        }
-
-        sleep(Duration::from_secs(5)).await;
-    }
-
-    WireguardImpl::new(interface_name)
-}
-
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // TODO: use clap for proper input/argument parsing
@@ -46,7 +32,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let peer_repository = DnsNodeRepository::init(mesh_resolver)?;
 
-    let wireguard_device = init_retry_wg(&interface_name).await?;
+    let wireguard_device = WireguardImpl::new(&interface_name)?;
     let routing_service = RoutingServiceImpl::new(handle, &interface_name);
 
     let wg_mesh = WgMesh::new(peer_repository, routing_service, wireguard_device);
