@@ -4,7 +4,6 @@ use std::str::from_utf8;
 use crate::error;
 use crate::error::NodeRepository::InvalidNameserver;
 use crate::error::NodeRepository::MissingPubkeyRecord;
-use async_trait::async_trait;
 use futures::future::join_all;
 use hickory_resolver::TokioResolver;
 use hickory_resolver::config::{NameServerConfig, ResolverConfig};
@@ -40,7 +39,6 @@ impl DnsNodeRepository {
     }
 }
 
-#[async_trait(?Send)]
 impl NodeRepository for DnsNodeRepository {
     async fn list_mesh_nodes(
         &self,

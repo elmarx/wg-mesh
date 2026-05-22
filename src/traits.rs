@@ -1,9 +1,7 @@
 use crate::error;
-use async_trait::async_trait;
 
 use crate::model::Peer;
 
-#[async_trait(?Send)]
 pub trait NodeRepository {
     /// return the list of all nodes for this mesh
     async fn list_mesh_nodes(
@@ -18,7 +16,6 @@ pub trait NodeRepository {
     async fn fetch_all_peers(&self, mesh_record: &str) -> Result<Vec<Peer>, error::NodeRepository>;
 }
 
-#[async_trait(?Send)]
 pub trait RoutingService {
     async fn add_routes(&self, peers: &[Peer]) -> Result<(), error::Routing>;
 }

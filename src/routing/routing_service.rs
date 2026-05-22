@@ -1,5 +1,4 @@
 use crate::error;
-use async_trait::async_trait;
 use error::Routing::NoSuchInterface;
 use futures::TryStreamExt;
 use ipnet::Ipv4Net;
@@ -29,7 +28,6 @@ impl RoutingServiceImpl {
     }
 }
 
-#[async_trait(?Send)]
 impl RoutingService for RoutingServiceImpl {
     async fn add_routes(&self, peers: &[Peer]) -> Result<(), error::Routing> {
         let link_handle = self.handle.link();
