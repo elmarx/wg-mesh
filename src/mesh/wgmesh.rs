@@ -1,6 +1,7 @@
 use crate::error;
 use crate::mesh::filter_peers::filter_peers;
 use crate::traits::{NodeRepository, RoutingService, Wireguard};
+use std::time::Duration;
 
 pub struct WgMesh<PeerRepositoryT, RoutingServiceT, WireguardT>
 where
@@ -32,7 +33,7 @@ where
         }
     }
 
-    pub async fn execute(&self, mesh_record: &str) -> Result<(), error::WgMesh> {
+    pub async fn execute(&self, mesh_record: &str) -> Result<Duration, error::WgMesh> {
         let interface_pubkey = self.wireguard.get_interface_pubkey()?;
 
         // first, get a list of all Peers belonging to the mesh
@@ -51,6 +52,12 @@ where
             .add_routes(relevant_peers.as_slice())
             .await?;
 
-        Ok(())
+        let ttl = relevant_peers
+            .iter()
+            .map(|p| p.ttl)
+            .min()
+            .unwrap_or(Duration::from_mins(5));
+
+        Ok(ttl)
     }
 }

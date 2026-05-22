@@ -1,5 +1,3 @@
-use std::time::Duration;
-
 use clap::Parser;
 use rtnetlink::new_connection;
 use tokio::time::sleep;
@@ -32,7 +30,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let wg_mesh = WgMesh::new(peer_repository, routing_service, wireguard_device);
     loop {
-        wg_mesh.execute(&cli.mesh_record).await?;
-        sleep(Duration::from_secs(300)).await;
+        let ttl = wg_mesh.execute(&cli.mesh_record).await?;
+        sleep(ttl).await;
     }
 }
