@@ -1,36 +1,42 @@
-use std::net::SocketAddr;
+use std::net::IpAddr;
 use std::str::from_utf8;
 
-use crate::dns::resolver;
 use crate::error;
+use crate::error::NodeRepository::InvalidNameserver;
 use crate::error::NodeRepository::MissingPubkeyRecord;
 use async_trait::async_trait;
 use futures::future::join_all;
-use rsdns::Error;
-use rsdns::clients::ClientConfig;
-use rsdns::clients::tokio::Client;
-use rsdns::records::Class;
-use rsdns::records::data::{A, Txt};
+use hickory_resolver::TokioResolver;
+use hickory_resolver::config::{NameServerConfig, ResolverConfig};
+use hickory_resolver::net::runtime::TokioRuntimeProvider;
+use hickory_resolver::proto::rr::RData;
 
 use crate::model::Peer;
 use crate::traits::NodeRepository;
 
 pub struct DnsNodeRepository {
-    config: ClientConfig,
+    resolver: TokioResolver,
 }
 
 impl DnsNodeRepository {
-    pub fn new(resolver: SocketAddr) -> Self {
-        let config = ClientConfig::with_nameserver(resolver);
+    pub fn new(address: Option<String>) -> Result<Self, error::NodeRepository> {
+        let resolver = match address {
+            Some(a) => {
+                let nameserver = a
+                    .parse::<IpAddr>()
+                    .map_err(|_| InvalidNameserver(a.clone()))?;
+                let nameserver = NameServerConfig::udp_and_tcp(nameserver);
 
-        DnsNodeRepository { config }
-    }
+                let config = ResolverConfig::from_parts(None, vec![], vec![nameserver]);
 
-    pub fn init(address: Option<String>) -> Result<Self, error::NodeRepository> {
-        Ok(match address {
-            Some(a) => Self::new(resolver::from_address(&a)?),
-            None => Self::new(resolver::from_resolv_conf()),
-        })
+                TokioResolver::builder_with_config(config, TokioRuntimeProvider::default())
+                    .build()
+                    .expect("failed to create DNS resolver")
+            }
+            None => TokioResolver::builder_tokio()?.build()?,
+        };
+
+        Ok(DnsNodeRepository { resolver })
     }
 }
 
@@ -40,47 +46,72 @@ impl NodeRepository for DnsNodeRepository {
         &self,
         mesh_record: &str,
     ) -> Result<Vec<String>, error::NodeRepository> {
-        let mut client = Client::new(self.config.clone()).await?;
-
-        let response = client.query_rrset::<Txt>(mesh_record, Class::IN).await?;
+        let response = self.resolver.txt_lookup(mesh_record).await?;
 
         Ok(response
-            .rdata
+            .answers()
             .iter()
-            .map(|txt| from_utf8(&txt.text).expect("non-UTF-8 TXT record in mesh-record"))
-            .map(ToString::to_string)
+            .filter_map(|r| {
+                if let RData::TXT(txt) = &r.data {
+                    Some(
+                        String::from_utf8(txt.txt_data.concat())
+                            .expect("non-UTF-8 TXT record in mesh-record"),
+                    )
+                } else {
+                    None
+                }
+            })
             .collect())
     }
 
     async fn fetch_peer(&self, node_addr: &str) -> Result<Peer, error::NodeRepository> {
-        let mut client = Client::new(self.config.clone()).await?;
-
         let qname = format!("_wireguard.{node_addr}");
 
-        let has_public_ipv4_address = match client.query_rrset::<A>(node_addr, Class::IN).await {
-            Ok(a_query) => Ok(a_query.rdata.iter().any(|a| !a.address.is_private())),
-            Err(Error::NoAnswer) => Ok(false),
+        let has_public_ipv4_address = match self.resolver.ipv4_lookup(node_addr).await {
+            Ok(lookup) => Ok(lookup
+                .answers()
+                .iter()
+                .filter_map(|r| {
+                    if let RData::A(a) = &r.data {
+                        Some(a.0)
+                    } else {
+                        None
+                    }
+                })
+                .any(|addr| !addr.is_private())),
+            Err(e) if e.is_no_records_found() => Ok(false),
             Err(e) => Err(e),
         }?;
 
-        let pubkey_query = client.query_rrset::<Txt>(&qname, Class::IN).await?;
-        let pubkey = from_utf8(
-            &pubkey_query
-                .rdata
-                .first()
-                .ok_or_else(|| MissingPubkeyRecord(qname.clone()))?
-                .text,
-        )
-        .expect("non-UTF-8 TXT record for peer pubkey");
-        let allowed_ips_query = client.query_rrset::<A>(&qname, Class::IN).await?;
-        let allowed_ips: Vec<_> = allowed_ips_query
-            .rdata
+        let pubkey_response = self.resolver.txt_lookup(&qname).await?;
+        let pubkey_txt = pubkey_response
+            .answers()
             .iter()
-            .map(|a| format!("{}/32", a.address))
+            .find_map(|r| {
+                if let RData::TXT(txt) = &r.data {
+                    Some(txt)
+                } else {
+                    None
+                }
+            })
+            .ok_or_else(|| MissingPubkeyRecord(qname.clone()))?;
+        let pubkey_bytes = pubkey_txt.txt_data.concat();
+        let pubkey = from_utf8(&pubkey_bytes).expect("non-UTF-8 TXT record for peer pubkey");
+
+        let allowed_ips_response = self.resolver.ipv4_lookup(&qname).await?;
+        let allowed_ips: Vec<_> = allowed_ips_response
+            .answers()
+            .iter()
+            .filter_map(|r| {
+                if let RData::A(a) = &r.data {
+                    Some(a.0)
+                } else {
+                    None
+                }
+            })
+            .map(|addr| format!("{addr}/32"))
             .collect();
 
-        // TODO: "proper" subnet resolving
-        // (e.g.: put subnet-mask into DNS?)
         let site = node_addr
             .chars()
             .skip_while(|c| *c != '.')

@@ -30,7 +30,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (connection, handle, _) = new_connection()?;
     tokio::spawn(connection);
 
-    let peer_repository = DnsNodeRepository::init(mesh_resolver)?;
+    let peer_repository = DnsNodeRepository::new(mesh_resolver)?;
 
     let wireguard_device = WireguardImpl::new(&interface_name)?;
     let routing_service = RoutingServiceImpl::new(handle, &interface_name);

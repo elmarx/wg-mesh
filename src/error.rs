@@ -1,4 +1,4 @@
-use rsdns::Error as RsdnsError;
+use hickory_resolver::net::NetError;
 use thiserror::Error;
 use wireguard_control::InvalidKey;
 
@@ -26,10 +26,7 @@ pub enum Mesh {
 #[derive(Error, Debug)]
 pub enum NodeRepository {
     #[error(transparent)]
-    Rsdns(#[from] RsdnsError),
-
-    #[error("Cant turn {1} into a socket address: {0}")]
-    UnresolvableSocketAddress(std::io::Error, String),
+    Dns(#[from] NetError),
 
     #[error("Can't resolve nameserver: {0}")]
     InvalidNameserver(String),
