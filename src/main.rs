@@ -1,15 +1,16 @@
-use std::env;
-use std::env::args;
 use std::time::Duration;
 
+use clap::Parser;
 use rtnetlink::new_connection;
 use tokio::time::sleep;
 
+use crate::cli::Cli;
 use crate::dns::node_repository::DnsNodeRepository;
 use crate::mesh::wgmesh::WgMesh;
 use crate::routing::routing_service::RoutingServiceImpl;
 use crate::wireguard::wireguard_device::WireguardImpl;
 
+mod cli;
 mod dns;
 mod error;
 mod mesh;
@@ -20,24 +21,18 @@ mod wireguard;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // TODO: use clap for proper input/argument parsing
-    let interface_name = args().nth(2).unwrap_or("wg0".to_string());
-    let mesh_record = args()
-        .nth(1)
-        .expect("please pass record name with the peer list");
-    let mesh_resolver = env::var("WG_MESH_RESOLVER").ok();
+    let cli = Cli::parse();
 
     let (connection, handle, _) = new_connection()?;
     tokio::spawn(connection);
 
-    let peer_repository = DnsNodeRepository::new(mesh_resolver)?;
-
-    let wireguard_device = WireguardImpl::new(&interface_name)?;
-    let routing_service = RoutingServiceImpl::new(handle, &interface_name);
+    let peer_repository = DnsNodeRepository::new(cli.resolver)?;
+    let wireguard_device = WireguardImpl::new(&cli.interface)?;
+    let routing_service = RoutingServiceImpl::new(handle, &cli.interface);
 
     let wg_mesh = WgMesh::new(peer_repository, routing_service, wireguard_device);
     loop {
-        wg_mesh.execute(&mesh_record).await?;
+        wg_mesh.execute(&cli.mesh_record).await?;
         sleep(Duration::from_secs(300)).await;
     }
 }
