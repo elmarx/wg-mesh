@@ -84,7 +84,7 @@ impl NodeRepository for DnsNodeRepository {
         }?;
 
         let pubkey_response = self.resolver.txt_lookup(&qname).await?;
-        let pubkey_txt = pubkey_response
+        let pubkey_record = pubkey_response
             .answers()
             .iter()
             .find_map(|r| {
@@ -95,7 +95,7 @@ impl NodeRepository for DnsNodeRepository {
                 }
             })
             .ok_or_else(|| MissingPubkeyRecord(qname.clone()))?;
-        let pubkey_bytes = pubkey_txt.txt_data.concat();
+        let pubkey_bytes = pubkey_record.txt_data.concat();
         let pubkey = from_utf8(&pubkey_bytes).expect("non-UTF-8 TXT record for peer pubkey");
 
         let allowed_ips_response = self.resolver.ipv4_lookup(&qname).await?;
@@ -112,6 +112,15 @@ impl NodeRepository for DnsNodeRepository {
             .map(|addr| format!("{addr}/32"))
             .collect();
 
+        let ttl = pubkey_response
+            .answers()
+            .iter()
+            .chain(allowed_ips_response.answers().iter())
+            .map(|r| r.ttl)
+            .min()
+            .unwrap_or(300);
+        let ttl = std::time::Duration::from_secs(ttl.into());
+
         let site = node_addr
             .chars()
             .skip_while(|c| *c != '.')
@@ -123,6 +132,7 @@ impl NodeRepository for DnsNodeRepository {
             endpoint: (node_addr.into(), 51820),
             site,
             has_public_ipv4_address,
+            ttl,
         })
     }
 

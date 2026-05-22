@@ -5,4 +5,5 @@ pub struct Peer {
     pub endpoint: (String, u16),
     pub site: String,
     pub has_public_ipv4_address: bool,
+    pub ttl: std::time::Duration,
 }
