@@ -6,7 +6,7 @@ pub struct Cli {
     /// DNS record containing the list of mesh peers
     pub mesh_record: String,
 
-    /// WireGuard interface name
+    /// `WireGuard` interface name
     #[arg(short, long, default_value = "wg0")]
     pub interface: String,
 
