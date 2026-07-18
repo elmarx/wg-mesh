@@ -13,6 +13,7 @@ use hickory_resolver::proto::rr::RData;
 use crate::model::Peer;
 use crate::traits::NodeRepository;
 
+#[derive(Debug)]
 pub struct DnsNodeRepository {
     resolver: TokioResolver,
 }
@@ -146,5 +147,29 @@ impl NodeRepository for DnsNodeRepository {
         .collect();
 
         all_peers
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::DnsNodeRepository;
+    use crate::error;
+    use std::assert_matches;
+
+    #[test]
+    #[ignore = "This fails for nix build (which does not have a system resolver in the build environment)"]
+    fn new_with_no_nameserver_uses_system_resolver() {
+        assert_matches!(DnsNodeRepository::new(None), Ok(_));
+    }
+
+    #[test]
+    fn new_with_valid_ip_succeeds() {
+        assert_matches!(DnsNodeRepository::new(Some("9.9.9.9".to_string())), Ok(_));
+    }
+
+    #[test]
+    fn new_with_invalid_ip_returns_error() {
+        let actual = DnsNodeRepository::new(Some("not-an-ip".to_string()));
+        assert_matches!(actual, Err(error::NodeRepository::InvalidNameserver(_)));
     }
 }
