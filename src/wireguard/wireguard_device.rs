@@ -10,6 +10,7 @@ use crate::traits::Wireguard;
 #[cfg(target_os = "linux")]
 pub const BACKEND: Backend = Backend::Kernel;
 
+#[derive(Debug)]
 pub struct WireguardImpl {
     interface_name: InterfaceName,
 }
@@ -42,5 +43,34 @@ impl Wireguard for WireguardImpl {
         let device = Device::get(&self.interface_name, BACKEND).map_err(NoSuchDevice)?;
         let interface_pubkey = device.public_key.ok_or(NoPubkey)?;
         Ok(interface_pubkey.to_base64())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::assert_matches;
+
+    #[test]
+    fn valid_interface_name_succeeds() {
+        assert!(WireguardImpl::new("wg0").is_ok());
+    }
+
+    #[test]
+    fn empty_interface_name_returns_error() {
+        assert_matches!(
+            WireguardImpl::new(""),
+            Err(error::Wireguard::InvalidInterfaceName(_))
+        );
+    }
+
+    #[test]
+    fn too_long_interface_name_returns_error() {
+        // Linux interface names are limited to IFNAMSIZ-1 = 15 characters
+        let long_name = "a".repeat(16);
+        assert_matches!(
+            WireguardImpl::new(&long_name),
+            Err(error::Wireguard::InvalidInterfaceName(_))
+        );
     }
 }
