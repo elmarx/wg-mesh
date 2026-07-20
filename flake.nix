@@ -51,6 +51,18 @@
         # agnostic ones like nixosModule and system-enumerating ones, although
         # those are more easily expressed in perSystem.
 
+        nixosModules.default =
+          { config, lib, ... }:
+          {
+            imports = [ ./nixos-module.nix ];
+            config = lib.mkIf config.wg-mesh.enable {
+              nixpkgs.overlays = [ inputs.self.overlays.default ];
+            };
+          };
+
+        overlays.default = final: _prev: {
+          wg-mesh = inputs.self.packages.${final.system}.default;
+        };
       };
     };
 }
