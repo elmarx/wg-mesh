@@ -61,7 +61,7 @@
           };
 
         overlays.default = final: _prev: {
-          wg-mesh = inputs.self.packages.${final.system}.default;
+          wg-mesh = inputs.self.packages.${final.stdenv.hostPlatform.system}.default;
         };
       };
     };
